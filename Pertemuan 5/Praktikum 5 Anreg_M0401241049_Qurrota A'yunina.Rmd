@@ -1,0 +1,268 @@
+---
+title: "Praktikum 5 Anreg"
+author: "Qurrota A'yunina | M0401241049"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown
+---
+
+# Library
+
+```{r}
+library(readxl)
+library(dplyr)
+library(GGally)
+library(corrplot)
+library(car)
+library(MASS)
+```
+
+# Data
+
+```{r}
+# Import data
+data <- read_excel(
+"C:/Users/USER/OneDrive/ドキュメント/Mata Kuliah Semester 4/Analisis Regresi/Data Pengangguran_Qurrota A'yunina_M0401241049.xlsx",
+sheet="Data"
+)
+
+# Hapus peubah Provinsi
+dt <- dplyr::select(data, -Provinsi)
+
+head(dt)
+str(dt)
+summary(dt)
+```
+
+Data yang digunakan adalah data tingkat provinsi di Indonesia tahun 2025 yang terdiri atas 38 provinsi dengan 1 peubah respon dan 6 peubah penjelas.
+
+1. Y = Tingkat Pengangguran Terbuka (Persen)
+2. X1 = Rata-rata Lama Sekolah
+3. X2 = Jumlah Penduduk Miskin (Ribu)
+4. X3 = Pengeluaran Per Kapita (Rupiah)
+5. X4 = Penduduk Daerah Perkotaan (Persen)
+6. X5 = Upah Minimum Provinsi (Rupiah)
+7. X6 = Jumlah Penduduk Usia Produktif (Orang)
+
+# Eksplorasi Data
+
+```{r}
+options(digits=7)
+options(scipen=999)
+```
+
+```{r}
+hist(
+dt$Y,
+main="Sebaran Tingkat Pengangguran Terbuka",
+xlab="Y"
+)
+```
+
+```{r}
+boxplot(
+dt$Y,
+main="Boxplot Tingkat Pengangguran Terbuka"
+)
+```
+
+```{r}
+ggpairs(
+dt,
+upper=list(
+continuous=
+wrap(
+"cor",
+digits=2,
+size=4
+)
+),
+title="Matriks Scatterplot Data"
+)
+```
+
+```{r}
+cor_matrix <- cor(dt)
+
+corrplot(
+cor_matrix,
+method="color",
+type="lower",
+addCoef.col="black",
+number.digits=2,
+tl.col="black",
+tl.srt=45
+)
+```
+Hasil matriks scatter plot dan korelasi menunjukkan bahwa peubah respon Y memiliki hubungan positif dengan X1, X3, X4, X5, dan X6, serta hubungan negatif dengan X2. Semua peubah ini memiliki korelasi dengan Y.
+
+Selain itu, terdapat korelasi tinggi antar peubah penjelas, baik lebih dari 0.5 maupun kurang dari -0.5 yaitu X1 dan X2 memiliki korelasi -0.60.
+
+Korelasi yang tinggi ini mengindikasikan adanya potensi multikolinearitas, yang dapat memengaruhi keakuratan model yang akan dibentuk.
+
+
+# Pemodelan
+
+## Tanpa Fungsi
+
+```{r}
+n <- nrow(dt)
+
+x0 <- rep(1,n)
+
+x <- data.frame(
+x0,
+dt$X1,
+dt$X2,
+dt$X3,
+dt$X4,
+dt$X5,
+dt$X6
+)
+
+x <- as.matrix(x)
+
+y <- dt$Y
+
+beta_duga <- qr.solve(
+x,
+y
+)
+
+beta_duga
+```
+Hasil tersebut menjelaskan bahwa persamaan yang terbentuk adalah
+$$\hat{Y}=-6.243305+0.7971334X1+0.01442155X2+0.00000007995293X3−0.01693898X4+0.00000006770238X5+0.00000007153283X6$$
+
+Selang kepercayaan dan pengujian signifikansi setiap parameter dapat dilakukan dengan menghitung keragaman tiap dugaan parameter. Secara umum, nilai ragam dugaan parameter $\hat{\beta}_j$ dapat dihitung melalui rumus berikut.
+
+$$Var(\hat{\beta}_j) = \hat{\sigma}^2 C_{jj}$$
+
+Persamaan:
+
+```{r}
+model <- lm(
+Y ~ X1 + X2 + X3 + X4 + X5 + X6,
+data=dt
+)
+
+coef(model)
+```
+Unsur diagonal dari matriks $C$ dapat digunakan untuk menghitung nilai galat baku dari setiap dugaan parameter. Galat baku ini dapat digunakan untuk menghitung selang kepercayaan dari dugaan yang dihasilkan.
+
+$$SE(\hat{\beta}_j) = \sqrt{Var(\hat{\beta}_j)} = \sqrt{\sigma^2 C_{jj}} = \hat{\sigma}\sqrt{c_{ii}}$$
+```{r}
+summary(model)
+```
+
+## VIF
+
+```{r}
+vif(model)
+```
+
+## Selang Kepercayaan Beta
+
+```{r}
+beta_duga <- coef(model)
+
+sigma2 <- summary(model)$sigma^2
+
+C <- ginv(t(x)%*%x)
+
+diag_C <- diag(C)
+
+se_beta <- sqrt(
+sigma2*diag_C
+)
+
+se_beta
+```
+
+Misal untuk β2:
+
+```{r}
+alfa <- 0.05
+
+n <- nrow(dt)
+
+p <- length(beta_duga)
+
+bb.b2 <-
+beta_duga[3] -
+abs(
+qt(
+alfa/2,
+df=n-p
+)
+)*se_beta[3]
+
+ba.b2 <-
+beta_duga[3] +
+abs(
+qt(
+alfa/2,
+df=n-p
+)
+)*se_beta[3]
+
+bb.b2
+ba.b2
+```
+Dengan demikian, kita dapat ketahui selang kepercayaan untuk $\hat{\beta}_2$ sebagai berikut.
+$$0.014421549513399150103 <\hat{\beta}_2<0.014421549519955058696$$
+
+Pada kasus selang kepercayaan $\hat{\beta}_2$ di atas, didapati bahwa dugaan parameter berada dalam rentang yang tidak mengandung nilai 0. Dengan demikian, dapat dimaknai bahwa diduga nilai parameter $\hat{\beta}_2$ bernilai tidak sama dengan 0 atau signifikan dalam taraf nyata 5%.
+
+## Model Akhir (Peubah Signifikan)
+
+```{r}
+model_signif <- lm(
+Y ~ X1 + X5 + X6,
+data=dt
+)
+
+summary(model_signif)
+```
+
+## Perbandingan Model
+
+```{r}
+perbandingan <- data.frame(
+Model=
+c(
+"Penuh",
+"Signifikan"
+),
+
+Adjusted_R2=
+c(
+summary(model)$adj.r.squared,
+summary(model_signif)$adj.r.squared
+),
+
+AIC=
+c(
+AIC(model),
+AIC(model_signif)
+),
+
+BIC=
+c(
+BIC(model),
+BIC(model_signif)
+)
+)
+
+perbandingan
+```
+
+Berdasarkan indikator Adjusted R-square, AIC, dan BIC, dipilih model dengan peubah signifikan sebagai model terbaik. Meskipun model penuh memiliki nilai Adjusted R-square yang sedikit lebih tinggi, model peubah signifikan menghasilkan nilai AIC dan BIC yang lebih kecil sehingga memberikan keseimbangan yang lebih baik antara kemampuan prediksi dan kesederhanaan model. Oleh karena itu, model akhir menggunakan peubah X1, X5, dan X6. Persamaan yang terbentuk adalah sebagai berikut
+
+$$\hat{PPM}=−5.5805+0.7677X1+0.0000007392X5+0.0000000587X6$$
+
+Interpretasi:
+1. Dugaan rata-rata Tingkat Pengangguran Terbuka ketika X1, X5, dan X6 bernilai 0 adalah sebesar −5,5805%.
+2. Dugaan rata-rata Tingkat Pengangguran Terbuka akan meningkat sebesar 0,7677% apabila X1 meningkat satu satuan, dengan asumsi peubah X5 dan X6 konstan.
+3. Dugaan rata-rata Tingkat Pengangguran Terbuka akan meningkat sebesar 0,0000007392% apabila X5 meningkat satu satuan, dengan asumsi peubah X1 dan X6 konstan.
+4. Dugaan rata-rata Tingkat Pengangguran Terbuka akan meningkat sebesar 0,0000000587% apabila X6 meningkat satu satuan, dengan asumsi peubah X1 dan X5 konstan.
