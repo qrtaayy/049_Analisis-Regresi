@@ -1,0 +1,241 @@
+---
+title: "Praktikum 6 Analisis Regresi"
+author: "Qurrota A'yunina | M0401241049"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown
+---
+
+# Library
+
+```{r}
+library(readxl)
+library(GGally)
+library(corrplot)
+library(dplyr)
+library(car)
+library(stargazer)
+library(lmtest)
+library(olsrr)
+```
+
+
+```{r}
+dt <- read_xlsx(
+"C:\\Users\\USER\\OneDrive\\ドキュメント\\Mata Kuliah Semester 4\\Analisis Regresi\\Data Pengangguran_Qurrota A'yunina_M0401241049.xlsx",
+sheet = "Data"
+)
+
+dt
+```
+```{r}
+str(dt)
+```
+```{r}
+summary(dt)
+```
+Data yang digunakan adalah data tingkat pengangguran terbuka pada 38 provinsi di Indonesia dengan 1 peubah respon yaitu Tingkat Pengangguran Terbuka (Y) dan 6 peubah penjelas.
+
+```{r}
+dt <- dplyr::select(dt, -Provinsi)
+```
+
+# Eksplorasi Data
+
+## Peubah Respon
+
+```{r}
+hist(dt$Y,
+     main="Sebaran Tingkat Pengangguran Terbuka",
+     xlab="TPT")
+```
+```{r}
+boxplot(dt$Y,
+        main="Sebaran Tingkat Pengangguran Terbuka")
+```
+## Peubah Penjelas VS Peubah REspon
+
+### X1
+
+```{r}
+plot(dt$X1, dt$Y,
+     xlab="Rata-rata Lama Sekolah",
+     ylab="TPT")
+```
+```{r}
+plot(dt$X2, dt$Y,
+     xlab="Jumlah Penduduk Miskin",
+     ylab="TPT")
+```
+
+```{r}
+plot(dt$X3, dt$Y,
+     xlab="Pengeluaran Per Kapita",
+     ylab="TPT")
+```
+```{r}
+plot(dt$X4, dt$Y,
+     xlab="Penduduk Daerah Perkotaan",
+     ylab="TPT")
+```
+```{r}
+plot(dt$X5, dt$Y,
+     xlab="UMP",
+     ylab="TPT")
+```
+```{r}
+plot(dt$X6, dt$Y,
+     xlab="Penduduk Usia Produktif",
+     ylab="TPT")
+```
+## Korelasi
+
+```{r}
+ggpairs(
+dt,
+upper=list(continuous=wrap("cor", size=3)),
+title="Matriks Scatterplot"
+)
+```
+```{r}
+cor_matrix <- cor(dt)
+
+corrplot(
+cor_matrix,
+method="color",
+type="lower",
+addCoef.col="black",
+tl.col="black"
+)
+```
+## Permodelan
+
+```{r}
+model1 <- lm(Y ~ ., data=dt)
+
+summary(model1)
+```
+```{r}
+coef(model1)
+```
+# Pemeriksaan Multikolinearitas
+
+## Peubahan Peubah
+
+```{r}
+mod1 <- lm(Y~X1, dt)
+
+mod2 <- lm(Y~X1+X2, dt)
+
+mod3 <- lm(Y~X1+X2+X3, dt)
+
+mod4 <- lm(Y~X1+X2+X3+X4, dt)
+
+mod5 <- lm(Y~X1+X2+X3+X4+X5, dt)
+
+mod6 <- lm(Y~., dt)
+
+stargazer(
+mod1,mod2,mod3,mod4,mod5,mod6,
+type="text",
+single.row=TRUE
+)
+```
+## VIF
+
+```{r}
+vif(model1)
+```
+
+# Diagnostik Sisaan
+
+## Normalitas
+
+```{r}
+shapiro.test(residuals(model1))
+```
+## Homoskedastisitas
+
+```{r}
+bptest(model1)
+```
+## Independensi
+
+```{r}
+dwtest(model1)
+```
+## OUtlier dan Influence
+
+```{r}
+ols_plot_cooksd_chart(model1)
+```
+```{r}
+ols_plot_dffits(model1)
+```
+# Model Akhir
+
+```{r}
+summary(model1)
+```
+1. Uji Simultan (Uji F)
+
+Nilai F-statistic = 6,236 dengan p-value = 0,0002237 (< 0,05).
+
+Interpretasi:
+Secara simultan terdapat minimal satu peubah penjelas yang berpengaruh signifikan terhadap Tingkat Pengangguran Terbuka (TPT), sehingga model regresi layak digunakan.
+
+2. Koefisien Determinasi (R²)
+
+Nilai R² = 0,5469 dan Adjusted R² = 0,4592.
+
+Interpretasi:
+Sebesar 54,69% variasi Tingkat Pengangguran Terbuka dapat dijelaskan oleh peubah:
+
+X1 = Rata-rata Lama Sekolah
+X2 = Jumlah Penduduk Miskin
+X3 = Pengeluaran Per Kapita
+X4 = Penduduk Daerah Perkotaan
+X5 = UMP
+X6 = Penduduk Usia Produktif
+
+Sedangkan 45,31% lainnya dijelaskan faktor lain di luar model.
+
+3. Uji Parsial (Uji t)
+
+Persamaan regresi:
+Hasil tersebut menjelaskan bahwa persamaan yang terbentuk adalah
+$$\hat{Y}=-6.243305+0.7971334X1+0.01442155X2+0.00000007995293X3−0.01693898X4+0.000000067702X5+0.00000007153X6$$
+
+Interpretasi masing-masing:
+
+X1 (Rata-rata Lama Sekolah) → p-value = 0,000172 < 0,05
+→ berpengaruh signifikan positif terhadap TPT.
+Setiap kenaikan 1 tahun rata-rata lama sekolah, diperkirakan meningkatkan TPT sebesar 0,797 poin (dengan variabel lain tetap).
+X2 (Jumlah Penduduk Miskin) → p-value = 0,692 > 0,05
+→ tidak berpengaruh signifikan terhadap TPT.
+X3 (Pengeluaran Per Kapita) → p-value = 0,130 > 0,05
+→ tidak berpengaruh signifikan.
+X4 (Penduduk Daerah Perkotaan) → p-value = 0,130 > 0,05
+→ tidak berpengaruh signifikan.
+X5 (UMP) → p-value = 0,024 < 0,05
+→ berpengaruh signifikan positif terhadap TPT.
+X6 (Penduduk Usia Produktif) → p-value = 0,002 < 0,05
+→ berpengaruh signifikan positif terhadap TPT.
+
+4. Pemeriksaan Asumsi
+
+Normalitas (Shapiro–Wilk)
+p-value = 0,1834 > 0,05
+→ Sisaan berdistribusi normal.
+
+Homoskedastisitas (Breusch–Pagan)
+p-value = 0,7798 > 0,05
+→ Tidak terdapat heteroskedastisitas (ragam sisaan homogen).
+
+Independensi (Durbin–Watson)
+p-value = 0,9011 > 0,05
+→ Tidak terdapat autokorelasi pada sisaan.
+
+Kesimpulan:
+
+Model regresi memenuhi asumsi dasar dan layak digunakan. Dari enam peubah penjelas, Rata-rata Lama Sekolah (X1), UMP (X5), dan Penduduk Usia Produktif (X6) berpengaruh signifikan terhadap Tingkat Pengangguran Terbuka.
