@@ -1,0 +1,121 @@
+---
+title: "Praktikum 6 Analisis Regresi"
+author: "Qurrota A'yunina | M0401241049"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown
+---
+
+# Library
+
+```{r}
+library(readxl)
+library(car)       # multikolinearitas
+library(olsrr)     # best subset
+library(MASS)      # forward, backward, stepwise
+library(glmnet)    # ridge dan lasso
+
+# Data
+data <- read_xlsx(
+"C:\\Users\\USER\\OneDrive\\ドキュメント\\Mata Kuliah Semester 4\\Analisis Regresi\\Data Pengangguran_Qurrota A'yunina_M0401241049.xlsx",sheet = "Data")
+data
+```
+
+```{r}
+# Pemodelan Awal
+
+model1 <- lm(Y ~ X1 + X2 + X3 + X4 + X5 + X6, data = data)
+summary(model1)
+```
+Persamaan regresi yang terbentuk dari seluruh peubah menghasilkan nilai adjusted R-square sebesar 78,4%, artinya model mampu menjelaskan variasi Tingkat Pengangguran Terbuka sebesar 78,4%, sedangkan sisanya dijelaskan faktor lain di luar model. Berdasarkan uji parsial, terdapat 2 peubah yang tidak signifikan, yaitu X2 dan X5 karena memiliki p-value > 0,05.
+
+```{r}
+# Pemeriksaan Multikolinearitas
+
+vif(model1)
+```
+Hasil pemeriksaan nilai VIF menunjukkan seluruh peubah penjelas memiliki nilai VIF < 10, sehingga dapat disimpulkan tidak terdapat multikolinearitas pada model.
+
+```{r}
+# Penyeleksian Peubah
+
+## Best Subset
+bs <- ols_step_best_subset(model1)
+bs
+
+## Backward
+null <- lm(Y ~ 1, data = data)
+full <- lm(Y ~ ., data = data[, -1])   # buang kolom Provinsi
+
+step(
+  full,
+  scope = list(lower = null, upper = full),
+  data = data,
+  direction = "backward",
+  trace = 0
+)
+
+## Forward
+step(
+  null,
+  scope = list(lower = null, upper = full),
+  data = data,
+  direction = "forward",
+  trace = 0
+)
+
+## Stepwise
+step(
+  null,
+  scope = list(lower = null, upper = full),
+  data = data,
+  direction = "both",
+  trace = 0
+)
+
+# Model Terbaik
+
+model2 <- lm(Y ~ X1 + X2 + X3 + X4 + X5 + X6, data=data)
+summary(model2)
+
+AIC(model2)
+BIC(model2)
+
+# Shrinkage Methods
+
+## Ridge
+x <- as.matrix(data[, c("X1","X2","X3","X4","X5","X6")])
+y <- data$Y
+
+rid <- cv.glmnet(
+  x,
+  y,
+  alpha = 0,
+  nfolds = 5
+)
+
+rid
+coef(rid, s = "lambda.min")
+
+
+## Lasso
+lass <- cv.glmnet(
+  x,
+  y,
+  alpha = 1,
+  nfolds = 5
+)
+
+lass
+coef(lass, s = "lambda.min")
+```
+
+Interpretasi:
+Pemodelan awal menggunakan seluruh peubah penjelas menghasilkan nilai adjusted R-square sebesar 45,92%, yang berarti model mampu menjelaskan variasi Tingkat Pengangguran Terbuka sebesar 45,92%, sedangkan sisanya dijelaskan oleh faktor lain di luar model. Berdasarkan uji parsial, peubah X1, X5, dan X6 berpengaruh signifikan terhadap Tingkat Pengangguran Terbuka karena memiliki p-value < 0,05, sedangkan X2, X3, dan X4 tidak signifikan.
+
+Hasil penyeleksian peubah menggunakan metode best subset, backward, forward, dan stepwise menghasilkan model yang sama yaitu menggunakan 5 peubah penjelas (X1, X3, X4, X5, dan X6). Model tersebut memiliki adjusted R-square sebesar 47,34% yang lebih besar dibanding model awal serta AIC sebesar 115,49 dan BIC sebesar 126,95 yang menunjukkan performa model yang lebih baik.
+
+Pada metode ridge dan lasso, seluruh peubah tetap dipertahankan karena tidak terdapat koefisien yang bernilai nol. Namun kedua metode menghasilkan penyusutan nilai koefisien untuk meningkatkan kestabilan model.
+
+Kesimpulan:
+Berdasarkan hasil analisis regresi dan penyeleksian peubah, diperoleh bahwa model terbaik adalah model hasil seleksi peubah yang terdiri atas X1, X3, X4, X5, dan X6 karena memiliki nilai adjusted R-square terbesar (47,34%) serta AIC paling kecil (115,49) dibanding model lainnya. Dengan demikian, model tersebut dinilai paling baik dalam menjelaskan variasi Tingkat Pengangguran Terbuka pada data yang digunakan.
